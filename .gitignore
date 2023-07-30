@@ -30,4 +30,5 @@
 *.orig
 
 # Program specific
+video-converter.exe
 /tmp
