@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"time"
 	u "video-converter/utils"
 )
 
@@ -55,6 +56,13 @@ func main() {
 			russianSubtitleIndex := strconv.Itoa(streams.Get("rusSubs").Index)
 			englishSubtitleIndex := strconv.Itoa(streams.Get("engSubs").Index)
 
+			// fmt.Printf("russianAudioIndex = %s\n", russianAudioIndex)
+			// fmt.Printf("englishAudioIndex = %s\n", englishAudioIndex)
+			// fmt.Printf("russianSubtitleIndex = %s\n", russianSubtitleIndex)
+			// fmt.Printf("englishSubtitleIndex = %s\n", englishSubtitleIndex)
+
+			// время начала конвертации
+			start := time.Now()
 			// Выполняем конвертацию
 			err := u.ConvertFile(
 				ffmpegPath,
@@ -69,7 +77,13 @@ func main() {
 				fmt.Println(err)
 				return
 			}
-			fmt.Printf("File %s successfully converted to %s\n", inputFile, outputFile)
+			// Calculate the elapsed time
+			elapsed := time.Since(start)
+			// Format and print the elapsed time
+			hours := int(elapsed.Hours())
+			minutes := int(elapsed.Minutes()) % 60
+			seconds := int(elapsed.Seconds()) % 60
+			fmt.Printf("File %s was successfully converted to %s in %02d:%02d:%02d\n", inputFile, outputFile, hours, minutes, seconds)
 		}(file.Name())
 	}
 
