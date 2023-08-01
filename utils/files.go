@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -39,7 +38,7 @@ func GetFiles(extn string) []fs.DirEntry {
 // Читаем файл и делим на строки
 func ReadFileAndSplit(filename string) []string {
 	// Читаем содержимое файла
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 
 	if err != nil {
 		log.Fatalf("Ошибка при чтении файла ошибок: %s\n", err)
@@ -51,19 +50,40 @@ func ReadFileAndSplit(filename string) []string {
 }
 
 // функция для изменения имени файла - оставляем только название и номер_сезона.номер_серии
-func SplitFileNameByPattern(filename string) string {
+func SplitFileNameByPattern(filename string) (string, error) {
+	// 1. Yellowstone S03E01 WEB-DL 2160p.mkv			=> Yellowstone S03E01.720p.H265.mkv
+	// 2. 01x00 Pilot [CBS Drama+OPT+Eng].mkv          	=> S01E00.Pilot.720p.H265.mkv
+	// 3. 01. The One Where Monica Gets a Roommate.mkv 	=> E01.The One Where Monica Gets a Roommate.720p.H265.mkv
+
 	const (
 		desc = ".720p.H265"
-		se   = `([sS]\d\d[eE]\d\d)`
 	)
-	re := regexp.MustCompile(se)
-	matches := re.FindStringSubmatchIndex(filename)
+
+	// Паттерн 1: ([sS]\d\d[eE]\d\d-?\d?\d?)
+	pattern1 := regexp.MustCompile(`([sS]\d\d[eE]\d\d-?\d?\d?)`)
+	matches := pattern1.FindStringSubmatchIndex(filename)
 	if len(matches) > 0 {
 		ext := filepath.Ext(filename)
-		return filename[:matches[0]] + filename[matches[2]:matches[3]] + desc + ext
+		return filename[:matches[0]] + filename[matches[2]:matches[3]] + desc + ext, nil
 	}
-	log.Fatalf("Pattern %s not found\n", se)
-	return ""
+
+	// Паттерн 2: (\d\d)x(\d\d)\s*(.*)\s*\[.*
+	pattern2 := regexp.MustCompile(`(\d\d)x(\d\d)\s*(.*)\s*\[.*`)
+	matches = pattern2.FindStringSubmatchIndex(filename)
+	if len(matches) > 0 {
+		ext := filepath.Ext(filename)
+		return "S" + filename[matches[2]:matches[3]] + "E" + filename[matches[4]:matches[5]] + "." + strings.TrimSpace(filename[matches[6]:matches[7]]) + desc + ext, nil
+	}
+
+	// Паттерн 3: (\d\d)\.\s*(.*)\..*
+	pattern3 := regexp.MustCompile(`(\d\d)\.\s*(.*)\..*`)
+	matches = pattern3.FindStringSubmatchIndex(filename)
+	if len(matches) > 0 {
+		ext := filepath.Ext(filename)
+		return "E" + filename[matches[2]:matches[3]] + "." + strings.TrimSpace(filename[matches[4]:matches[5]]) + desc + ext, nil
+	}
+
+	return "", fmt.Errorf("ни один из паттернов не найден в имени файла: %s", filename)
 }
 
 // функция для создания файла по имени

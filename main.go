@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"runtime"
 	"strconv"
 	"sync"
@@ -43,7 +44,12 @@ func main() {
 			}()
 
 			// получаем новое имя для перeкодированного файла
-			outputFile := u.SplitFileNameByPattern(inputFile)
+			outputFile, err := u.SplitFileNameByPattern(inputFile)
+			if err != nil {
+				log.Printf("ERROR: patern for file %s hasn't found", inputFile)
+				return
+			}
+
 			fmt.Printf("Processing file: %s\n", inputFile)
 
 			// Получаем информацию о потоках аудио и субтитров с помощью ffprobe
@@ -64,7 +70,7 @@ func main() {
 			// время начала конвертации
 			start := time.Now()
 			// Выполняем конвертацию
-			err := u.ConvertFile(
+			err = u.ConvertFile(
 				ffmpegPath,
 				inputFile,
 				outputFile,
