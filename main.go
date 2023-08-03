@@ -28,7 +28,7 @@ func main() {
 	fmt.Printf("Number of CPU cores: %d\n", numCores)
 
 	// Создаем канал с буфером в размере, соответствующем количеству ядер
-	semaphore := make(chan struct{}, numCores*3)
+	semaphore := make(chan struct{}, numCores)
 
 	// Используем wait group для ожидания завершения всех горутин
 	var wg sync.WaitGroup

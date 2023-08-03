@@ -22,8 +22,8 @@ func Ffmpeg() string {
 }
 
 func setArguments(russianAudioIndex string, englishAudioIndex string, russianSubtitleIndex string, englishSubtitleIndex string, inputFile string, outputFile string) ([]string, error) {
-	if russianAudioIndex == "-1" && englishAudioIndex == "-1" || russianSubtitleIndex == "-1" && englishSubtitleIndex == "-1" {
-		return nil, fmt.Errorf("Can't convert because both indexes undefined:\n\trussianAudioIndex = %s\n\tenglishAudioIndex = %s\n\trussianSubtitleIndex = %s\n\tenglishSubtitleIndex = %s\n\t", russianAudioIndex, englishAudioIndex, russianSubtitleIndex, englishSubtitleIndex)
+	if russianAudioIndex == "-1" && englishAudioIndex == "-1" {
+		return nil, fmt.Errorf("Can't convert because both audio indexes in %s are undefined:\n\trussianAudioIndex = %s\n\tenglishAudioIndex = %s\n\trussianSubtitleIndex = %s\n\tenglishSubtitleIndex = %s\n\t", inputFile, russianAudioIndex, englishAudioIndex, russianSubtitleIndex, englishSubtitleIndex)
 
 		// TODO: очистить ресурсы?
 	}
@@ -40,6 +40,7 @@ func setArguments(russianAudioIndex string, englishAudioIndex string, russianSub
 	res = append(res, "-vf")
 	res = append(res, "scale=-2:720")
 
+	// предполагаем что хоть одна аудиодорожка есть
 	if russianAudioIndex == "-1" || englishAudioIndex == "-1" {
 		res = append(res, "-c:a:0")
 		res = append(res, "copy")
@@ -50,14 +51,22 @@ func setArguments(russianAudioIndex string, englishAudioIndex string, russianSub
 		res = append(res, "copy")
 	}
 
-	if russianSubtitleIndex == "-1" || englishSubtitleIndex == "-1" {
-		res = append(res, "-c:s:0")
-		res = append(res, "copy")
-	} else {
-		res = append(res, "-c:s:0")
-		res = append(res, "copy")
-		res = append(res, "-c:s:1")
-		res = append(res, "copy")
+	switch {
+	case russianSubtitleIndex == "-1" && englishSubtitleIndex != "-1", russianSubtitleIndex != "-1" && englishSubtitleIndex == "-1":
+		{
+			res = append(res, "-c:s:0")
+			res = append(res, "copy")
+
+		}
+	case russianSubtitleIndex == "-1" && englishSubtitleIndex == "-1":
+
+	default:
+		{
+			res = append(res, "-c:s:0")
+			res = append(res, "copy")
+			res = append(res, "-c:s:1")
+			res = append(res, "copy")
+		}
 	}
 
 	res = append(res, "-map")
@@ -93,7 +102,8 @@ func setArguments(russianAudioIndex string, englishAudioIndex string, russianSub
 			res = append(res, "-map")
 			res = append(res, "0:s:"+englishSubtitleIndex)
 		}
-	case russianSubtitleIndex != "-1" && englishSubtitleIndex != "-1":
+	case russianSubtitleIndex == "-1" && englishSubtitleIndex == "-1":
+	default:
 		{
 			res = append(res, "-map")
 			res = append(res, "0:s:"+russianSubtitleIndex)
