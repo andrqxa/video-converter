@@ -15,6 +15,7 @@ const (
 )
 
 func main() {
+	startProgram := time.Now()
 
 	// Получаем все файлы в текущем каталоге с расширением .mkv
 	files := u.GetFiles(fileExt)
@@ -84,15 +85,25 @@ func main() {
 				return
 			}
 			// Calculate the elapsed time
-			elapsed := time.Since(start)
+			hours, minutes, seconds := calculateTime(start)
 			// Format and print the elapsed time
-			hours := int(elapsed.Hours())
-			minutes := int(elapsed.Minutes()) % 60
-			seconds := int(elapsed.Seconds()) % 60
 			fmt.Printf("File %s was successfully converted to %s in %02d:%02d:%02d\n", inputFile, outputFile, hours, minutes, seconds)
 		}(file.Name())
 	}
 
 	wg.Wait() // Ожидаем завершения всех горутин
-	fmt.Println("Conversion completed.")
+	// Calculate the elapsed time whole program
+	hours, minutes, seconds := calculateTime(startProgram)
+	fmt.Printf("Conversion completed in %02d:%02d:%02d\n", hours, minutes, seconds)
+}
+
+func calculateTime(start time.Time) (int, int, int) {
+	// Calculate the elapsed time
+	elapsed := time.Since(start)
+	// Format and print the elapsed time
+	hours := int(elapsed.Hours())
+	minutes := int(elapsed.Minutes()) % 60
+	seconds := int(elapsed.Seconds()) % 60
+
+	return hours, minutes, seconds
 }
