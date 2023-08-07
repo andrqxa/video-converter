@@ -10,13 +10,15 @@ import (
 
 const (
 	// Константы для регулярных выражений для поиска строк с информацией о потоках
-	audioStartPtrn    = `^\s*Stream\s*#0:(\d\d?)\(\w\w\w\): Audio:`
-	subtitleStartPtrn = `^\s*Stream\s*#0:(\d\d?)\(\w\w\w\): Subtitle:`
+	audioStartPtrn    = `^\s*Stream\s*#\d:(\d\d?)\(\w\w\w\): Audio:`
+	subtitleStartPtrn = `^\s*Stream\s*#\d:(\d\d?)\(\w\w\w\): Subtitle:`
 
-	audioPatternRusPtrn    = `^\s*Stream\s*#0:(\d\d?)\(rus\): Audio:`
-	audioPatternEngPtrn    = `^\s*Stream\s*#0:(\d\d?)\(eng\): Audio:`
-	subtitlePatternRusPtrn = `^\s*Stream\s*#0:(\d\d?)\(rus\): Subtitle:`
-	subtitlePatternEngPtrn = `^\s*Stream\s*#0:(\d\d?)\(eng\): Subtitle:`
+	// audioPatternRusPtrn    = `^\s*Stream\s*#0:(\d\d?)\(rus\): Audio:`
+	// audioPatternEngPtrn    = `^\s*Stream\s*#0:(\d\d?)\(eng\): Audio:`
+	// subtitlePatternRusPtrn = `^\s*Stream\s*#0:(\d\d?)\(rus\): Subtitle:`
+	// subtitlePatternEngPtrn = `^\s*Stream\s*#0:(\d\d?)\(eng\): Subtitle:`
+
+	videoPtrn = `^Stream\s*#\d:\d\d?\(\w+\):\s*Video:\s*.*,\s*(\d{3}\d?)x(\d{3}\d?)\s*.*$`
 )
 
 var (
@@ -24,46 +26,54 @@ var (
 	audioStart    = regexp.MustCompile(audioStartPtrn)
 	subtitleStart = regexp.MustCompile(subtitleStartPtrn)
 
-	audioPatternRus    = regexp.MustCompile(audioPatternRusPtrn)
-	audioPatternEng    = regexp.MustCompile(audioPatternEngPtrn)
-	subtitlePatternRus = regexp.MustCompile(subtitlePatternRusPtrn)
-	subtitlePatternEng = regexp.MustCompile(subtitlePatternEngPtrn)
+	// audioPatternRus    = regexp.MustCompile(audioPatternRusPtrn)
+	// audioPatternEng    = regexp.MustCompile(audioPatternEngPtrn)
+	// subtitlePatternRus = regexp.MustCompile(subtitlePatternRusPtrn)
+	// subtitlePatternEng = regexp.MustCompile(subtitlePatternEngPtrn)
+
+	videoPattern = regexp.MustCompile(videoPtrn)
 )
 
-// Структура для хранения информации о потоках (аудио или субтитры)
-type StreamInfo struct {
-	Type     string
-	Index    int
+// Структура для хранения информации о видео
+type VideoInfo struct {
+	Width  int
+	Height int
+}
+
+// Структура для хранения информации об аудиопотоке (аудио или субтитры)
+type AudioInfo struct {
+	Index int
+	// Offset   int
+	Title    string
 	Language string
 }
 
-func NewStreamInfo(tp string, ln string) StreamInfo {
-	return StreamInfo{Type: tp, Index: -1, Language: ln}
+type Audios []AudioInfo
+
+// Структура для хранения информации о субтитрах
+type SubsInfo struct {
+	Index int
+	// Offset   int
+	Title    string
+	Language string
 }
 
-type AllStreamInfo map[string]StreamInfo
+type Subs []SubsInfo
+
+// Структура для хранения всей информации
+type AllStreamInfo struct {
+	v VideoInfo
+	a Audios
+	s Subs
+}
 
 func NewAllStreamInfo() *AllStreamInfo {
-	res := make(AllStreamInfo)
-	return &res
-}
-
-func (a *AllStreamInfo) Put(idx string, s StreamInfo) {
-	(*a)[idx] = s
-}
-
-func (a AllStreamInfo) Get(idx string) StreamInfo {
-	return a[idx]
-}
-
-func (a *AllStreamInfo) UpdateIndex(key string, newIdx int) {
-	// TODO: нужны проверки на то существуюет ли ключ: info, ok := (*a)[key] и тогда выкидывать error и проверять его
-	// Get the original StreamInfo value from the map
-	info := (*a)[key]
-	// Modify the Index field
-	info.Index = newIdx
-	// Store the modified StreamInfo back into the map
-	(*a)[key] = info
+	v := VideoInfo{}
+	// a := AudioInfo{Index: -1}
+	// s := SubsInfo{Index: -1}
+	a := make(Audios, 0)
+	s := make(Subs, 0)
+	return &AllStreamInfo{v: v, a: a, s: s}
 }
 
 func parseIndex(str string) int {
@@ -89,30 +99,6 @@ func GetRawInfo(file string, outputFile *os.File) []string {
 	}
 
 	return ReadFileAndSplit(outputFile.Name())
-}
-
-func GetFirstIndexes(lines []string) (int, int) {
-	var (
-		isAudio    bool
-		isSubs     bool
-		startAudio int
-		startSub   int
-	)
-
-	// fmt.Printf("Команда успешно выполнена. Вывод ошибок записан %s.\n", file)
-
-	// находим номер первого аудиопотока и первых сабов
-	for _, ln := range lines {
-		if match := audioStart.FindStringSubmatch(ln); match != nil && !isAudio {
-			isAudio = true
-			startAudio = parseIndex(match[1])
-		} else if match := subtitleStart.FindStringSubmatch(ln); match != nil && !isSubs {
-			isSubs = true
-			startSub = parseIndex(match[1])
-		}
-	}
-
-	return startAudio, startSub
 }
 
 // Функция для получения информации о потоках (аудио или субтитры) с помощью ffprobe
@@ -203,42 +189,57 @@ func GetStreamsInfo(file string) AllStreamInfo {
 	// Получаем информацию из файла вывода ffprobe
 	lines := GetRawInfo(file, outputFile)
 
-	// находим номер первого аудиопотока и первых сабов
-	startAudio, startSub := GetFirstIndexes(lines)
-
-	rusAudio := NewStreamInfo("audio", "rus")
-	res.Put("rusAudio", rusAudio)
-
-	engAudio := NewStreamInfo("audio", "eng")
-	res.Put("engAudio", engAudio)
-
-	rusSubs := NewStreamInfo("sub", "rus")
-	res.Put("rusSubs", rusSubs)
-
-	engSubs := NewStreamInfo("sub", "eng")
-	res.Put("engSubs", engSubs)
-
-	for _, line := range lines {
-		if match := audioPatternRus.FindStringSubmatch(line); match != nil && !isRusA {
-			isRusA = true
-			index := parseIndex(match[1]) - startAudio
-			res.UpdateIndex("rusAudio", index)
-		} else if match := audioPatternEng.FindStringSubmatch(line); match != nil && !isEngA {
-			isEngA = true
-			index := parseIndex(match[1]) - startAudio
-			res.UpdateIndex("engAudio", index)
-		} else if match := subtitlePatternRus.FindStringSubmatch(line); match != nil { //&& !isRusS {
-			// isRusS = true
-			index := parseIndex(match[1]) - startSub
-			res.UpdateIndex("rusSubs", index)
-		} else if match := subtitlePatternEng.FindStringSubmatch(line); match != nil { //&& !isEngS {
-			// isEngS = true
-			index := parseIndex(match[1]) - startSub
-			res.UpdateIndex("engSubs", index)
+	leng := len(lines)
+	for i := 0; i < leng; i++ {
+		if i >= leng {
+			break
+		}
+		line := lines[i]
+		if match := videoPattern.FindStringSubmatch(line); match != nil {
+			// обрабатывать пока не закончится видео раздел
+			// handleVideo()
+			// изменить i
+			continue
+		} else if match := audioStart.FindStringSubmatch(line); match != nil {
+			// обрабатывать пока не закончится аудио раздел
+			// handleAudio()
+			// изменить i
+			continue
+		} else if match := subtitleStart.FindStringSubmatch(line); match != nil {
+			// обрабатывать пока не закончится раздел субтитров
+			// subtitleHandle()
+			// изменить i
+			continue
 		}
 	}
 
-	// fmt.Printf("res = %v\n", res)
+	for _, line := range lines {
+		if match := videoPattern.FindStringSubmatch(line); match != nil {
+			handleVideo()
+		} else if match := audioStart.FindStringSubmatch(line); match != nil {
+			handleAudio()
+		} else if match := subtitleStart.FindStringSubmatch(line); match != nil {
+			subtitleHandle()
+		}
+
+		// if match := audioPatternRus.FindStringSubmatch(line); match != nil && !isRusA {
+		// 	isRusA = true
+		// 	index := parseIndex(match[1]) - startAudio
+		// 	res.UpdateIndex("rusAudio", index)
+		// } else if match := audioPatternEng.FindStringSubmatch(line); match != nil && !isEngA {
+		// 	isEngA = true
+		// 	index := parseIndex(match[1]) - startAudio
+		// 	res.UpdateIndex("engAudio", index)
+		// } else if match := subtitlePatternRus.FindStringSubmatch(line); match != nil { //&& !isRusS {
+		// 	// isRusS = true
+		// 	index := parseIndex(match[1]) - startSub
+		// 	res.UpdateIndex("rusSubs", index)
+		// } else if match := subtitlePatternEng.FindStringSubmatch(line); match != nil { //&& !isEngS {
+		// 	// isEngS = true
+		// 	index := parseIndex(match[1]) - startSub
+		// 	res.UpdateIndex("engSubs", index)
+		// }
+	}
 
 	return *res
 }
